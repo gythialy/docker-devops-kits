@@ -1,0 +1,106 @@
+version: "3.5"
+
+services:
+  mysql:
+    image: mysql:latest
+    ports:
+      - "3306:3306"
+    networks:
+      - devops
+    environment:
+      - MYSQL_ROOT_PASSWORD=/run/secrets/db_root_password
+      - SESSION_SECRET
+    volumes:
+      - type: bind
+        source: ./mysql/conf.d
+        target: /etc/mysql/conf.d
+      - type: bind
+        source: ./mysql/data
+        target: var/lib/mysql
+      # - ./mysql/conf.d:/etc/mysql/conf.d
+      # - ./mysql/data:var/lib/mysql
+    secrets:
+      - db_root_password
+      - my_other_secret
+    restart: always
+
+  gogs:
+    image: gitea/gitea:latest
+    ports:
+      - "10080:3000"
+      - "10022:22"
+    networks:
+      - devops
+    environment:
+      - VIRTUAL_HOST=git.vking.io
+      - VIRTUAL_PORT=3000
+      - GITEA_CUSTOM=/etc/gitea
+    volumes:
+      - type: bind
+        source: ./gitea/data
+        target: /data
+      - type: bind
+        source: ./gitea/custom
+        target: /etc/gitea
+      # - ./gitea:/data
+      # - ./gitea/custom:/etc/gitea
+    restart: always
+
+  task:
+    image: kanboard/kanboard:latest
+    ports:
+      - "8888:80"
+    networks:
+      - devops
+    environment:
+      - VIRTUAL_HOST=task.vking.io
+      - VIRTUAL_PORT=80
+    volumes:
+      # - type: bind
+      #   source: ./kanboard/data
+      #   target: /var/www/app/data
+      # - type: bind
+      #   source: ./kanboard/plugins
+      #   target: /var/www/app/plugins
+      - ./kanboard/data:/var/www/app/data
+      - ./kanboard/plugins:/var/www/app/plugins
+    restart: always
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    ports:
+      - "8081:8080"
+      - "50000:5000"
+    networks:
+      - devops
+    environment:
+      - VIRTUAL_HOST=jenkins.vking.io
+      - VIRTUAL_PORT=8080
+    volumes:
+      - type: bind
+        source: ./jenkins/data
+        target: /var/jenkins_home
+      # - ./jenkins/data:/var/jenkins_home
+    restart: always
+
+  nginx:
+      image: jwilder/nginx-proxy:alpine
+      ports:
+        - "80:80"
+      networks:
+        - devops
+      volumes:
+        - type: bind
+          source: /var/run/docker.sock
+          target: /tmp/docker.sock
+        # - /var/run/docker.sock:/tmp/docker.sock
+      restart: always
+
+secrets:
+  db_root_password:
+    file: ./mysql/my_secret.txt
+  my_other_secret:
+    external: true
+
+networks:
+  devops:
