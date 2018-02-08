@@ -3,29 +3,29 @@ version: "3.5"
 services:
   mysql:
     image: mysql:latest
+    container_name: mysql
     ports:
       - "3306:3306"
     networks:
       - devops
     environment:
       - MYSQL_ROOT_PASSWORD=/run/secrets/db_root_password
-      - SESSION_SECRET
     volumes:
       - type: bind
         source: ./mysql/conf.d
         target: /etc/mysql/conf.d
       - type: bind
         source: ./mysql/data
-        target: var/lib/mysql
+        target: /var/lib/mysql
       # - ./mysql/conf.d:/etc/mysql/conf.d
-      # - ./mysql/data:var/lib/mysql
+      # - ./mysql/data:/var/lib/mysql
     secrets:
       - db_root_password
-      - my_other_secret
     restart: always
 
-  gogs:
+  gitea:
     image: gitea/gitea:latest
+    container_name: gitea
     ports:
       - "10080:3000"
       - "10022:22"
@@ -35,9 +35,11 @@ services:
       - VIRTUAL_HOST=git.vking.io
       - VIRTUAL_PORT=3000
       - GITEA_CUSTOM=/etc/gitea
+    depends_on: 
+      - mysql
     volumes:
       - type: bind
-        source: ./gitea/data
+        source: ./gitea
         target: /data
       - type: bind
         source: ./gitea/custom
@@ -48,6 +50,7 @@ services:
 
   task:
     image: kanboard/kanboard:latest
+    container_name: kanboard
     ports:
       - "8888:80"
     networks:
@@ -56,18 +59,19 @@ services:
       - VIRTUAL_HOST=task.vking.io
       - VIRTUAL_PORT=80
     volumes:
-      # - type: bind
-      #   source: ./kanboard/data
-      #   target: /var/www/app/data
-      # - type: bind
-      #   source: ./kanboard/plugins
-      #   target: /var/www/app/plugins
-      - ./kanboard/data:/var/www/app/data
-      - ./kanboard/plugins:/var/www/app/plugins
+      - type: bind
+        source: ./kanboard/data
+        target: /var/www/app/data
+      - type: bind
+        source: ./kanboard/plugins
+        target: /var/www/app/plugins
+      # - ./kanboard/data:/var/www/app/data
+      # - ./kanboard/plugins:/var/www/app/plugins
     restart: always
 
   jenkins:
     image: jenkins/jenkins:lts
+    container_name: jenkins
     ports:
       - "8081:8080"
       - "50000:5000"
@@ -85,8 +89,13 @@ services:
 
   nginx:
       image: jwilder/nginx-proxy:alpine
+      container_name: nginx
       ports:
         - "80:80"
+      depends_on: 
+        - gitea
+        - task
+        - jenkins
       networks:
         - devops
       volumes:
@@ -99,8 +108,7 @@ services:
 secrets:
   db_root_password:
     file: ./mysql/my_secret.txt
-  my_other_secret:
-    external: true
 
 networks:
   devops:
+    name: devops-network
